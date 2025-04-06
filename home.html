@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Product Catalog</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      margin: 0;
+      padding: 0;
+      background: #87CEFA;
+    }
+
+    header {
+      background-color: lawnGreen;
+      color: #000;
+      padding: 1rem;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    header h1 {
+      margin: 0;
+    }
+
+    #mode-buttons {
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    #admin-controls {
+      margin: 1rem;
+      display: none;
+    }
+
+    #product-form {
+      background: #ffffff;
+      padding: 1rem;
+      margin-bottom: 1rem;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    }
+
+    input[type="text"], input[type="number"], input[type="file"] {
+      width: 100%;
+      padding: 0.5rem;
+      margin: 0.5rem 0;
+    }
+
+    button {
+      padding: 0.5rem 1rem;
+      margin-top: 0.5rem;
+      cursor: pointer;
+      background-color: #4a90e2;
+      color: white;
+      border: none;
+      border-radius: 4px;
+    }
+
+    .product-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      padding: 1rem;
+      justify-content: center;
+    }
+
+    .product-card {
+      background-color: #fff;
+      width: 100%;
+      max-width: 500px;
+      border-radius: 10px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+      overflow: hidden;
+    }
+
+    .product-card img {
+      width: calc(100% - 2rem);
+      height: 250px;
+      object-fit: cover;
+      margin: 1rem;
+      border-radius: 8px;
+    }
+
+    .product-info {
+      padding: 1rem;
+    }
+
+    .product-info h3 {
+      margin: 0 0 0.5rem 0;
+      color: #333;
+    }
+
+    .product-info p {
+      margin: 0.5rem 0;
+    }
+
+    .actions {
+      margin-top: 1rem;
+    }
+
+    .actions button {
+      margin-right: 0.5rem;
+    }
+
+    footer {
+      text-align: center;
+      padding: 1rem;
+      background: #f0f0f0;
+      color: #333;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Product Catalog</h1>
+  <div id="mode-buttons">
+    <button onclick="switchToViewer()">Viewer Mode</button>
+    <button onclick="switchToAdmin()">Admin Mode</button>
+  </div>
+</header>
+
+<div id="admin-controls">
+  <form id="product-form" onsubmit="addProduct(event)">
+    <input type="text" id="product-name" placeholder="Product Name" required />
+    <input type="text" id="product-description" placeholder="Product Description" required />
+    <input type="number" id="product-price" placeholder="Price (₹)" required />
+    <input type="file" id="product-image" accept="image/*" required />
+    <button type="submit">Add Product</button>
+    <button type="button" onclick="createCatalogLink()">Create Link</button>
+    <button type="button" onclick="shareCatalogue()">Share Catalogue</button>
+  </form>
+</div>
+
+<div class="product-list" id="product-list"></div>
+
+<footer>
+  Mohit Marketing - All rights reserved.
+</footer>
+
+<script>
+  let isAdmin = false;
+  const DB_NAME = "ProductDB";
+  const DB_STORE = "products";
+  let db;
+
+  window.onload = () => {
+    initDB();
+  };
+
+  function switchToViewer() {
+    isAdmin = false;
+    document.getElementById("admin-controls").style.display = "none";
+    renderProducts();
+  }
+
+  function switchToAdmin() {
+    const password = prompt("Enter Admin Password:");
+    if (password === "m8329684339") {
+      isAdmin = true;
+      document.getElementById("admin-controls").style.display = "block";
+      renderProducts();
+    } else {
+      alert("Wrong password!");
+    }
+  }
+
+  function initDB() {
+    const request = indexedDB.open(DB_NAME, 1);
+
+    request.onerror = (event) => {
+      console.error("Database error:", event.target.errorCode);
+    };
+
+    request.onsuccess = (event) => {
+      db = event.target.result;
+      renderProducts();
+    };
+
+    request.onupgradeneeded = (event) => {
+      db = event.target.result;
+      db.createObjectStore(DB_STORE, { keyPath: "id", autoIncrement: true });
+    };
+  }
+
+  function addProduct(event) {
+    event.preventDefault();
+
+    const name = document.getElementById("product-name").value;
+    const description = document.getElementById("product-description").value;
+    const price = document.getElementById("product-price").value;
+    const imageInput = document.getElementById("product-image");
+    const reader = new FileReader();
+
+    reader.onload = () => {
+      const imageData = reader.result;
+      const tx = db.transaction(DB_STORE, "readwrite");
+      const store = tx.objectStore(DB_STORE);
+      store.add({ name, description, price, imageData });
+      tx.oncomplete = () => {
+        event.target.reset();
+        renderProducts();
+      };
+    };
+
+    reader.readAsDataURL(imageInput.files[0]);
+  }
+
+  function renderProducts() {
+    const productList = document.getElementById("product-list");
+    productList.innerHTML = "";
+
+    const tx = db.transaction(DB_STORE, "readonly");
+    const store = tx.objectStore(DB_STORE);
+    const request = store.getAll();
+
+    request.onsuccess = () => {
+      const products = request.result;
+      products.forEach((product, index) => {
+        const card = document.createElement("div");
+        card.className = "product-card";
+        card.innerHTML = `
+          <img src="${product.imageData}" alt="Product Image" />
+          <div class="product-info">
+            <h3>${product.name}</h3>
+            <p>${product.description}</p>
+            <p><strong>Price: ₹${product.price}</strong></p>
+          </div>
+        `;
+        productList.appendChild(card);
+      });
+    };
+  }
+
+  function createCatalogLink() {
+    alert("You can share this webpage URL to share the catalogue.");
+  }
+
+  function shareCatalogue() {
+    const url = window.location.href;
+    if (navigator.share) {
+      navigator.share({
+        title: 'Mohit Marketing Catalogue',
+        text: 'Check out our product catalogue!',
+        url: url
+      }).catch((err) => {
+        alert("Sharing failed: " + err);
+      });
+    } else {
+      alert("Sharing not supported. Copy this link:\n" + url);
+    }
+  }
+</script>
+
+</body>
+</html>
